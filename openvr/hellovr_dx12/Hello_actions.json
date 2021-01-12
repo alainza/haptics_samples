@@ -1,0 +1,41 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "hpmotioncontroller",
+      "binding_url": "hello_hpcontroller.json"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/default/in/press1",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/press2",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/analog1",
+      "type": "vector1"
+    },
+    {
+      "name": "/actions/default/out/haptic",
+      "type": "vibration"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/default",
+      "usage": "leftright"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en",
+      "/actions/default": "My Game Actions",
+      "/actions/default/in/press1": "Press 1",
+      "/actions/default/in/press2": "Press 2",
+      "/actions/default/in/analog1": "Squeeze 1"
+    }
+  ]
+}
