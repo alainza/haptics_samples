@@ -12,6 +12,7 @@
 #include <wincodec.h>
 #include <WindowsNumerics.h>
 #include <chrono>
+#include <unordered_map>
 
 #include <Windows.Graphics.Directx.Direct3D11.Interop.h>
 #include <wrl/client.h>

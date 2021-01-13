@@ -175,46 +175,54 @@ HolographicFrame SimpleHapticsTestMain::Update()
     }
 #endif
 
-    static int loop = 0;
-    static auto previous = std::chrono::high_resolution_clock::now();
-    auto current = std::chrono::high_resolution_clock::now();
-    auto delta = current - previous;
-    previous = current;
-    auto microsecs = std::chrono::duration_cast<std::chrono::microseconds>(delta);
-    if (++loop % 100 == 0) {
-        wchar_t debug[512];
-        swprintf_s(debug, L"Micro seconds: %I64d\n", microsecs.count());
-        OutputDebugString(debug);
-    }
 
-    // Vibrate based on TriggerPress (if Menu is pressed)
+    // Use Menu to trigger haptics (available both on classic WMR controllers and HP controllers)
+    //     Left controller = enable continous buzz with intensity based on trigger
+    //     Right controller = single pulses with different intensities on Press and Release
     for (auto state : m_interactionManager.GetDetectedSourcesAtTimestamp(prediction.Timestamp()))
     {
-        if (state.IsMenuPressed())
+        auto source = state.Source();
+        auto handedness = source.Handedness();
+        bool wasMenuPressed = [&]()
         {
-            auto controller = state.Source().Controller();
-            if (controller)
+            auto it = m_wasMenuPressed.find(source.Handedness());
+            if (it == m_wasMenuPressed.end()) return false;
+            return it->second;
+        }();
+        bool isMenuPressed = state.IsMenuPressed();
+
+        // In real app, we would cache this
+        auto controller = source.Controller();
+        if (controller)
+        {
+            auto haptics = controller.SimpleHapticsController();
+            if (haptics)
             {
                 // todo: cache
-                auto haptics = controller.SimpleHapticsController();
-                if (haptics)
+                auto feedback = haptics.SupportedFeedback().GetAt(0);
+
+                if (handedness == SpatialInteractionSourceHandedness::Left)
                 {
-                    // todo: cache
-                    auto feedback = haptics.SupportedFeedback().GetAt(0);
+                    // Use Trigger's value to change intensity. Square it to increase response difference
                     auto intensity = state.SelectPressedValue();
-                    // Try to make it starting slower
                     intensity *= intensity;
 
-#if 0
                     // Do not specify duration, just set the level
                     haptics.SendHapticFeedback(feedback, intensity);
-#else
-                    // 90 Hz = 11 milliseconds per frame
-                    haptics.SendHapticFeedbackForDuration(feedback, intensity, std::chrono::milliseconds(11));
-#endif
+                    // At 90 Hz = 11 milliseconds per frame
+                    // we could also specify the duration
+                    //haptics.SendHapticFeedbackForDuration(feedback, intensity, std::chrono::milliseconds(11));
+                }
+                else if (wasMenuPressed != isMenuPressed)
+                {
+                    // Send stronger pulse on Press than on Release
+                    auto intensity = (isMenuPressed ? 1.0f : .1f);
+                    auto duration = (isMenuPressed ? 30 : 5);
+                    haptics.SendHapticFeedbackForDuration(feedback, intensity, std::chrono::milliseconds(duration));
                 }
             }
         }
+        m_wasMenuPressed[handedness] = state.IsMenuPressed();
     }
 
     m_timer.Tick([this]()

@@ -131,6 +131,6 @@ namespace SimpleHapticsTest
         bool                                                        m_canCommitDirect3D11DepthBuffer = false;
 
         winrt::Windows::UI::Input::Spatial::SpatialInteractionManager m_interactionManager { nullptr };
-
+        std::unordered_map<winrt::Windows::UI::Input::Spatial::SpatialInteractionSourceHandedness, bool> m_wasMenuPressed;
     };
 }
