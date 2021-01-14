@@ -7,19 +7,23 @@
   ],
   "actions": [
     {
-      "name": "/actions/default/in/press1",
+      "name": "/actions/default/in/vibrate",
       "type": "boolean"
     },
     {
-      "name": "/actions/default/in/press2",
+      "name": "/actions/default/in/pulse",
       "type": "boolean"
     },
     {
-      "name": "/actions/default/in/analog1",
+      "name": "/actions/default/in/vibration_intensity",
       "type": "vector1"
     },
     {
-      "name": "/actions/default/out/haptic",
+      "name": "/actions/default/out/pulse",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/default/out/vibrate",
       "type": "vibration"
     }
   ],

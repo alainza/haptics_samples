@@ -751,47 +751,25 @@ bool CMainApplication::HandleInput()
 	return bRet;
 }
 
-struct InputAction
+struct HelloAction
 {
 	const char* ActionPath;
-	vr::VRActionHandle_t Handle;
-	bool IsActive;
-	float hapticsScale;
-	bool IsDigital;
-	const char* HapticsPath;
-	vr::VRActionHandle_t HapticsHandle;
+	vr::VRActionHandle_t Handle{ vr::k_ulInvalidActionHandle };
+	bool IsActive{ false };
+
+	HelloAction(const char* actionPath)
+		: ActionPath(actionPath)
+	{}
 };
 
-InputAction g_actions[] =
-{
-	{
-			"/actions/default/in/press1",
-			vr::k_ulInvalidActionHandle,
-			false,
-			1.0f,
-			true,
-			"/actions/default/out/haptic",
-			vr::k_ulInvalidActionHandle
-	},
-	{
-			"/actions/default/in/press2",
-			vr::k_ulInvalidActionHandle,
-			false,
-			0.2f,
-			true,
-			nullptr,
-			vr::k_ulInvalidActionHandle
-	},
-	{
-			"/actions/default/in/analog1",
-			vr::k_ulInvalidActionHandle,
-			false,
-			0.0f,	// Ignore for continuous
-			false,
-			"/actions/default/out/haptic",
-			vr::k_ulInvalidActionHandle
-	}
-};
+HelloAction VibrateAction{ "/actions/default/in/vibrate" };
+HelloAction PulseAction{ "/actions/default/in/pulse" };
+HelloAction VibrateIntensityAction{ "/actions/default/in/vibration_intensity" };
+HelloAction OutPulseAction { "/actions/default/out/pulse" };
+HelloAction OutVibrateAction{ "/actions/default/out/vibrate" };
+
+HelloAction* g_actions[] =
+{ &VibrateAction, &PulseAction, &VibrateIntensityAction, &OutPulseAction, &OutVibrateAction };
 
 vr::VRActiveActionSet_t actionSet =
 {
@@ -812,14 +790,9 @@ void DeclareActions()
 
 	// Enable manifest
 	auto inputError = vr::VRInput()->SetActionManifestPath(manifestPath);
-	for (auto& action : g_actions)
+	for (auto action : g_actions)
 	{
-		inputError = vr::VRInput()->GetActionHandle(action.ActionPath, &action.Handle);
-
-		if (action.HapticsPath != nullptr)
-		{
-			inputError = vr::VRInput()->GetActionHandle(action.HapticsPath, &action.HapticsHandle);
-		}
+		inputError = vr::VRInput()->GetActionHandle(action->ActionPath, &action->Handle);
 	}
 
 	// Get the ActionSet handle
@@ -831,50 +804,40 @@ void UpdateActions()
 	const auto inputError = vr::VRInput()->UpdateActionState(&actionSet, sizeof(vr::VRActiveActionSet_t), 1);
 	if (inputError == vr::VRInputError_None)
 	{
-		for (auto& action : g_actions)
+		// Check for continuous vibration
 		{
-			if (action.IsDigital) {
-				vr::InputDigitalActionData_t actionData{ 0 };
-				bool wasActive = action.IsActive;
-				if (vr::VRInputError_None == vr::VRInput()->GetDigitalActionData(action.Handle, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle))
+			vr::InputDigitalActionData_t vibrateData{ 0 };
+			if (vr::VRInputError_None == vr::VRInput()->GetDigitalActionData(VibrateAction.Handle, &vibrateData, sizeof(vibrateData), vr::k_ulInvalidInputValueHandle))
+			{
+				VibrateAction.IsActive = vibrateData.bActive && vibrateData.bState;
+				if (VibrateAction.IsActive)
 				{
-					action.IsActive = actionData.bActive && actionData.bState;
-					if (action.IsActive && !wasActive)
+					vr::InputAnalogActionData_t intensityData{ 0 };
+					if (vr::VRInputError_None == vr::VRInput()->GetAnalogActionData(VibrateIntensityAction.Handle, &intensityData, sizeof(intensityData), vr::k_ulInvalidInputValueHandle))
 					{
-						OutputDebugStringA(action.ActionPath);
-						OutputDebugString(L"\n");
-
-						vr::InputOriginInfo_t origin = {};
-						if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &origin, sizeof(origin)))
-						{
-							if (action.HapticsHandle != vr::k_ulInvalidActionHandle)
-							{
-								vr::VRInput()->TriggerHapticVibrationAction(action.HapticsHandle, 0.0f, 0.011f, 100.0f, action.hapticsScale, vr::k_ulInvalidInputValueHandle);
-							}
-						}
+						const auto intensity = intensityData.x * intensityData.x;
+						// Only intensity matters: 1.0 is transformed in a 4 milliseconds pulse with full intensity
+						vr::VRInput()->TriggerHapticVibrationAction(OutVibrateAction.Handle, 0.0f, 0.011f, 100.0f, intensity * 11.0f / 4.0f, vr::k_ulInvalidInputValueHandle);
 					}
-				}
-				else
-				{
-					action.IsActive = false;
 				}
 			}
-			else {
-				vr::InputAnalogActionData_t actionData;
-				if (vr::VRInputError_None == vr::VRInput()->GetAnalogActionData(action.Handle, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle))
+		}
+
+		// Check for simple pulse
+		{
+			const bool wasActive = PulseAction.IsActive;
+			vr::InputDigitalActionData_t pulseData{ 0 };
+			if (vr::VRInputError_None == vr::VRInput()->GetDigitalActionData(PulseAction.Handle, &pulseData, sizeof(pulseData), vr::k_ulInvalidInputValueHandle))
+			{
+				PulseAction.IsActive = pulseData.bActive && pulseData.bState;
+				// Only intensity matters: 1.0 is transformed in a 4 milliseconds pulse with full intensity
+				if (PulseAction.IsActive && !wasActive)
 				{
-					if (actionData.bActive)
-					{
-						vr::InputOriginInfo_t origin = {};
-						if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &origin, sizeof(origin)))
-						{
-							if (action.HapticsHandle != vr::k_ulInvalidActionHandle)
-							{
-								float amplitude = actionData.x * actionData.x;
-								vr::VRInput()->TriggerHapticVibrationAction(action.HapticsHandle, 0.0f, 0.011f, 100.0f, actionData.x, vr::k_ulInvalidInputValueHandle);
-							}
-						}
-					}
+					vr::VRInput()->TriggerHapticVibrationAction(OutPulseAction.Handle, 0.0f, 0.030f, 100.0f, 7.5f, vr::k_ulInvalidInputValueHandle);
+				}
+				else if (wasActive && !PulseAction.IsActive)
+				{
+					vr::VRInput()->TriggerHapticVibrationAction(OutPulseAction.Handle, 0.0f, 0.005f, 100.0f, .075f, vr::k_ulInvalidInputValueHandle);
 				}
 			}
 		}
